@@ -20,6 +20,11 @@ Flappy Kiro is a retro browser-based endless scroller game where players guide a
 - **Cloud**: Background decorative element that creates depth and parallax effect
 - **Terminal Velocity**: Maximum speed limit for the Ghost during freefall or ascent
 - **Interpolation**: Smooth movement calculation between frames using momentum conservation
+- **Hitbox**: Bounding box used for collision detection between game entities
+- **Invincibility Frames**: Temporary period during which collision responses are disabled
+- **Screen Shake**: Visual effect that displaces the camera briefly on collision
+- **Particle Trail**: Visual trail effect trailing behind the Ghost's movement
+- **Floating Indicator**: Temporary UI element showing score increments
 
 ## Requirements
 
@@ -178,3 +183,51 @@ Flappy Kiro is a retro browser-based endless scroller game where players guide a
 8. THE Physics System SHALL update position using the formula: new_position = current_position + (velocity * delta_time)
 9. WHERE the Game State is Menu, THE Physics System SHALL maintain the Ghost at x=50 pixels, y=50% screen height with zero velocity
 10. WHERE the Game State is Game Over, THE Physics System SHALL maintain the Ghost's final position and velocity at collision
+### Requirement 14: Enhanced Collision Detection
+
+**User Story:** As a player, I want precise collision detection with feedback, so that I get fair gameplay and visual confirmation when collisions occur.
+
+#### Acceptance Criteria
+
+1. THE Hitbox Definition SHALL be a bounding box of 30x30 pixels centered on the Ghost's sprite position
+2. WHEN a collision occurs between the Ghost and the top boundary (y = 0), THE Collision Detector SHALL register the collision and prevent the Ghost from moving above the ceiling
+3. WHEN a collision occurs between the Ghost and the bottom boundary (y + height = screen_height), THE Collision Detector SHALL register the collision and prevent the Ghost from moving below the ground
+4. WHEN a collision is detected, THE Collision Response System SHALL trigger a 500ms invincibility frame period during which no additional collision responses occur
+5. WHILE in invincibility frames, THE Collision Response System SHALL apply a 50% opacity effect to the Ghost sprite to indicate invulnerability
+6. WHEN a collision with a pipe occurs, THE Collision Response System SHALL trigger a 20-pixel screen shake effect lasting 300ms
+7. THE Collision Response System SHALL use pixel-perfect bounding box overlap detection between the Ghost hitbox and pipe hitboxes
+8. WHEN invincibility frames expire, THE Collision Response System SHALL restore the Ghost to full opacity
+
+### Requirement 15: Comprehensive Game State Management
+
+**User Story:** As a player, I want complete game state handling with persistent scores, so that I can navigate the game smoothly and see my progress across sessions.
+
+#### Acceptance Criteria
+
+1. THE Main Menu State SHALL display the title "Flappy Kiro" at center screen, y=25%, and the High Score at center screen, y=50%
+2. THE Gameplay State SHALL track real-time scoring with score increments when the Ghost successfully passes through pipes
+3. WHEN the player presses the Escape key or spacebar during Gameplay State, THE Game State SHALL transition to Paused State
+4. WHERE the Game State is Paused, THE Game Loop SHALL update physics but SHALL NOT update game entities or render animations
+5. WHERE the Game State is Paused, THE Renderer SHALL display "PAUSED" at center screen, y=40%
+6. WHEN the player presses Escape key or spacebar in Paused State, THE Game State SHALL resume Gameplay State from the paused position
+7. THE Game Over Screen SHALL display "Game Over" at center screen, y=30%, the final Score at center screen, y=50%, and a "Press Space to Restart" prompt at center screen, y=70%
+8. WHERE the Game State is Game Over, WHEN the player presses spacebar, THE Game State SHALL reset to Menu State after a 100ms debounce period
+9. THE High Score Storage System SHALL persist the maximum score achieved using browser localStorage with key "flappyKiro_highScore"
+10. WHEN loading the game, THE High Score Storage System SHALL load the stored high score value on initialization
+
+### Requirement 16: Audio and Visual Feedback System
+
+**User Story:** As a player, I want rich audio-visual feedback, so that the game feels responsive and engaging.
+
+#### Acceptance Criteria
+
+1. WHEN the Ghost flaps/jumps, THE Audio System SHALL play the Jump Sound effect at full volume
+2. WHEN the Ghost successfully passes through a pipe, THE Audio System SHALL play a Scoring Sound effect (0.1 second duration)
+3. WHEN a collision occurs, THE Audio System SHALL play the Game Over Sound effect at full volume
+4. WHERE the Game State is Menu, THE Audio System SHALL play a 30-second background music loop at 50% volume
+5. WHERE the Game State is Playing, THE Audio System SHALL pause background music and play only sound effects
+6. WHEN a collision with a pipe occurs, THE Visual System SHALL trigger a screen shake effect with 20-pixel amplitude for 300ms
+7. WHILE the Game State is Playing, THE Visual System SHALL generate particle trails behind the Ghost's position, creating a fading tail effect with 50-pixel maximum length
+8. WHERE the Game State is Playing, WHEN the score increments, THE Visual System SHALL display a floating "+1" indicator at the Ghost's current position for 500ms
+9. THE Particle Trail System SHALL generate one particle every 3 frames during gameplay
+10. THE Particle Trail System SHALL fade particles linearly over 1 second from full opacity to transparent
