@@ -25,6 +25,7 @@ Flappy Kiro is a retro browser-based endless scroller game where players guide a
 - **Screen Shake**: Visual effect that displaces the camera briefly on collision
 - **Particle Trail**: Visual trail effect trailing behind the Ghost's movement
 - **Floating Indicator**: Temporary UI element showing score increments
+- **CONFIG**: The exported constants object from config.js; the single source of truth for all tunable game values
 
 ## Requirements
 
@@ -231,3 +232,16 @@ Flappy Kiro is a retro browser-based endless scroller game where players guide a
 8. WHERE the Game State is Playing, WHEN the score increments, THE Visual System SHALL display a floating "+1" indicator at the Ghost's current position for 500ms
 9. THE Particle Trail System SHALL generate one particle every 3 frames during gameplay
 10. THE Particle Trail System SHALL fade particles linearly over 1 second from full opacity to transparent
+
+### Requirement 17: Game Configuration File
+
+**User Story:** As a developer, I want all game constants centralized in a single configuration file, so that I can tune gameplay parameters without searching through logic files.
+
+#### Acceptance Criteria
+
+1. THE Game SHALL include a dedicated `config.js` file at the project root containing all tunable constants as a single exported `CONFIG` object
+2. WHERE any game module requires a numeric or string constant (physics values, dimensions, colors, timing, audio volumes), THE module SHALL import that value from `config.js` rather than hardcoding it
+3. THE `config.js` file SHALL be plain JavaScript (no build step required) and SHALL load directly in the browser via a script tag before all other game scripts
+4. THE `CONFIG` object SHALL contain constants organized by category: Canvas, Physics, Ghost, Pipes, Clouds, Collision, Particles, Floating Indicators, Score UI, Audio, and Game Over/Pause UI
+5. WHEN a developer changes a constant in `config.js`, THE change SHALL take effect across all game modules without modifying any other file
+6. THE `CONFIG` object SHALL be treated as read-only at runtime - no game module SHALL mutate its values

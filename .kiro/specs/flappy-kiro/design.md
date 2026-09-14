@@ -13,6 +13,30 @@ Flappy Kiro is a browser-based endless scroller game where players guide a ghost
 
 ---
 
+## Visual Style
+
+Based on the reference UI, the game uses a retro sketchbook aesthetic:
+
+- **Background**: Sky blue (`#87CEEB`) with a hand-drawn pencil sketch texture overlay (semi-transparent dark lines pattern rendered with low opacity over the background)
+- **Pipes**: Solid green (`#2E8B22`) columns extending from top and bottom screen edges; each pipe has a darker green cap (`#1A5C12`) that is 4px wider on each side and 20px tall
+- **Clouds**: Rounded rectangles (not ellipses) with a slightly blue-white tint (`#D6EEF8`), semi-transparent opacity between 0.3–0.7, variable sizes
+- **Ghost (Ghosty)**: Small sprite (~32x32px), rendered using ghosty.png asset
+- **Score bar**: Full-width dark charcoal band (`#2C2C2C`) at the bottom of the canvas, height 40px; displays `Score: X | High: X` in white centered text, 18px font
+- **Canvas border**: Visible dark border (`#1A1A1A`, 3px) around the entire game canvas
+- **No top HUD**: Score is displayed only in the bottom bar, not overlaid on the play area
+
+### Rendering Order (Z-index, back to front)
+1. Sky blue background fill
+2. Sketch texture overlay (low opacity)
+3. Clouds (semi-transparent rounded rectangles)
+4. Pipes (bottom and top, with caps)
+5. Particle trail (behind Ghost)
+6. Ghost sprite
+7. Floating indicators ("+1")
+8. Bottom score bar (always on top, outside the shaking area)
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -344,16 +368,22 @@ interface Renderer {
 ```
 
 **Rendering Order (Z-index):**
-1. Background (optional)
-2. Pipes
-3. Ghost
-4. Score display (overlay)
+1. Sky blue background fill
+2. Sketch texture overlay (low opacity)
+3. Clouds (semi-transparent rounded rectangles)
+4. Pipes (bottom and top, with caps)
+5. Particle trail (behind Ghost)
+6. Ghost sprite
+7. Floating indicators ("+1")
+8. Bottom score bar (always on top, outside the shaking area)
 
 **Visual Elements:**
-- Title "Flappy Kiro" at center X, y = 25% screen height (Menu)
-- Ghost at x = 50px, y = 50% screen height (Playing)
-- Score counter at upper center, 24-point font (Playing)
-- "Game Over" at center X, y = 30% and final score at y = 50% (Game Over)
+- Sky blue background with sketch texture overlay
+- Clouds: rounded rectangles, blue-white tint (#D6EEF8), semi-transparent
+- Pipes: green columns (#2E8B22) with darker caps (#1A5C12), extend from screen edges
+- Ghost: ghosty.png sprite at ~32x32px
+- Bottom score bar: full-width charcoal band (#2C2C2C, 40px height), "Score: X | High: X" centered in white 18px font
+- Canvas border: 3px dark border (#1A1A1A) around canvas element
 
 ---
 
@@ -402,13 +432,34 @@ interface PipePair {
 interface GameConfig {
     screen_width: number;   // 800 pixels
     screen_height: number;  // 600 pixels
-    gravity: number;        // -9.8 pixels/second²
+    gravity: number;        // physics gravity (px/s², positive = downward)
     jump_velocity: number;  // -500 pixels/second
     pipe_scroll_speed: number; // 100 pixels/second
-    spawn_interval: number; // 1.5 seconds
+    spawn_interval: number; // 1.5 seconds (1500ms)
     pipe_gap: number;       // 150 pixels
+    pipe_gap_variance: number; // ±5 pixels
+    pipe_width: number;     // 60 pixels
+    pipe_cap_height: number; // 20 pixels
+    pipe_cap_overhang: number; // 4 pixels wider each side
+    pipe_color: string;     // '#2E8B22'
+    pipe_cap_color: string; // '#1A5C12'
     ghost_x: number;        // 50 pixels
     ghost_initial_y: number; // 50% screen height
+    ghost_sprite_size: number; // 32 pixels
+    ghost_hitbox_size: number; // 30 pixels
+    terminal_velocity_up: number;   // -600 pixels/second
+    terminal_velocity_down: number; // 800 pixels/second
+    target_fps: number;     // 60 FPS
+    frame_time_ms: number;  // 16.67ms
+    frame_timeout_ms: number; // 17.67ms
+    score_bar_height: number;  // 40 pixels
+    score_bar_color: string;   // '#2C2C2C'
+    score_font: string;        // '18px Arial'
+    score_text_color: string;  // '#FFFFFF'
+    high_score_key: string;    // localStorage key
+    canvas_border_width: number; // 3 pixels
+    canvas_border_color: string; // '#1A1A1A'
+    background_color: string;  // '#87CEEB'
 }
 ```
 
@@ -683,6 +734,116 @@ kiro-introduction/
 - Input handling
 - State machine logic
 - Rendering functions
+
+---
+
+## Configuration File
+
+All tunable game constants are centralized in a single `config.js` file. No magic numbers appear in game logic files. Every component imports from this config.
+
+**File**: `config.js`
+
+```js
+// config.js — single source of truth for all game constants
+export const CONFIG = {
+  // Canvas
+  SCREEN_WIDTH: 800,
+  SCREEN_HEIGHT: 600,
+  TARGET_FPS: 60,
+  FRAME_TIME_MS: 16.67,       // 1000 / TARGET_FPS
+  FRAME_TIMEOUT_MS: 17.67,    // FRAME_TIME_MS + 1ms tolerance
+
+  // Physics
+  GRAVITY: 1500,              // px/s² (positive = downward in canvas coords)
+  JUMP_VELOCITY: -500,        // px/s (negative = upward)
+  TERMINAL_VELOCITY_UP: -600, // px/s maximum upward speed
+  TERMINAL_VELOCITY_DOWN: 800,// px/s maximum downward speed
+
+  // Ghost
+  GHOST_X: 50,                // fixed horizontal position, px
+  GHOST_INITIAL_Y_RATIO: 0.5, // fraction of screen height
+  GHOST_SPRITE_SIZE: 32,      // px (width and height)
+  GHOST_HITBOX_SIZE: 30,      // px (square bounding box)
+
+  // Pipes
+  PIPE_SPEED: 100,            // px/s scroll speed
+  PIPE_GAP: 150,              // px gap between top and bottom pipe
+  PIPE_GAP_VARIANCE: 5,       // ±px random variance
+  PIPE_WIDTH: 60,             // px
+  PIPE_CAP_HEIGHT: 20,        // px
+  PIPE_CAP_OVERHANG: 4,       // px wider on each side
+  PIPE_SPAWN_INTERVAL: 1500,  // ms between pipe pair spawns
+  PIPE_COLOR: '#2E8B22',
+  PIPE_CAP_COLOR: '#1A5C12',
+
+  // Clouds
+  CLOUD_MIN_SPEED: 30,        // px/s
+  CLOUD_MAX_SPEED: 60,        // px/s
+  CLOUD_MIN_OPACITY: 0.3,
+  CLOUD_MAX_OPACITY: 0.7,
+  CLOUD_MIN_COUNT: 3,
+  CLOUD_MAX_COUNT: 8,
+  CLOUD_MIN_WIDTH: 60,        // px
+  CLOUD_MAX_WIDTH: 120,       // px
+  CLOUD_MIN_HEIGHT: 30,       // px
+  CLOUD_MAX_HEIGHT: 55,       // px
+  CLOUD_COLOR: '#D6EEF8',     // blue-white tint
+  CLOUD_BORDER_RADIUS: 20,    // px for rounded rectangles
+
+  // Collision & Response
+  INVINCIBILITY_MS: 500,
+  INVINCIBILITY_OPACITY: 0.5,
+  SCREEN_SHAKE_AMPLITUDE: 20, // px
+  SCREEN_SHAKE_DURATION: 300, // ms
+
+  // Particles
+  PARTICLE_SPAWN_INTERVAL_FRAMES: 3,
+  PARTICLE_MAX_AGE_MS: 1000,
+  PARTICLE_TRAIL_MAX_LENGTH: 50, // px
+  PARTICLE_RADIUS: 3,         // px
+
+  // Floating Indicators
+  INDICATOR_DURATION_MS: 500,
+  INDICATOR_TEXT: '+1',
+  INDICATOR_FONT: 'bold 20px Arial',
+
+  // Score UI
+  SCORE_BAR_HEIGHT: 40,       // px
+  SCORE_BAR_COLOR: '#2C2C2C',
+  SCORE_FONT: '18px Arial',
+  SCORE_TEXT_COLOR: '#FFFFFF',
+  HIGH_SCORE_KEY: 'flappyKiro_highScore',
+
+  // Canvas
+  CANVAS_BORDER_WIDTH: 3,     // px
+  CANVAS_BORDER_COLOR: '#1A1A1A',
+
+  // Background
+  BACKGROUND_COLOR: '#87CEEB',
+
+  // Audio
+  BG_MUSIC_VOLUME: 0.5,
+  BG_MUSIC_LOOP_DURATION: 30, // seconds
+  SCORING_SOUND_DURATION: 0.1, // seconds
+  JUMP_SOUND_DURATION: 0.3,   // seconds
+  GAME_OVER_SOUND_DURATION: 1.5, // seconds
+
+  // Game Over / Pause UI
+  GAME_OVER_TITLE_Y_RATIO: 0.30,
+  GAME_OVER_SCORE_Y_RATIO: 0.50,
+  GAME_OVER_PROMPT_Y_RATIO: 0.70,
+  PAUSE_TEXT_Y_RATIO: 0.40,
+  MENU_TITLE_Y_RATIO: 0.25,
+  MENU_HIGH_SCORE_Y_RATIO: 0.50,
+};
+```
+
+### Design Principles
+
+1. **Single source of truth**: All numbers live in `config.js`; import `CONFIG` in every module that needs them
+2. **No magic numbers in logic**: Replace all hardcoded values with `CONFIG.CONSTANT_NAME`
+3. **Separation of concerns**: `config.js` holds values; `.js` modules hold behavior
+4. **Easy iteration**: Tweak gameplay feel (gravity, pipe gap, speed) by editing one file without touching logic
 
 ---
 
@@ -1357,16 +1518,34 @@ interface StateMachine {
 interface GameConfig {
     screen_width: number;           // 800 pixels
     screen_height: number;          // 600 pixels
-    gravity: number;                // -9.8 pixels/second²
+    gravity: number;                // physics gravity (px/s², positive = downward)
     jump_velocity: number;          // -500 pixels/second
     pipe_scroll_speed: number;      // 100 pixels/second
-    spawn_interval: number;         // 1.5 seconds
+    spawn_interval: number;         // 1.5 seconds (1500ms)
     pipe_gap: number;               // 150 pixels
+    pipe_gap_variance: number;      // ±5 pixels
+    pipe_width: number;             // 60 pixels
+    pipe_cap_height: number;        // 20 pixels
+    pipe_cap_overhang: number;      // 4 pixels wider each side
+    pipe_color: string;             // '#2E8B22'
+    pipe_cap_color: string;         // '#1A5C12'
     ghost_x: number;                // 50 pixels
     ghost_initial_y: number;        // 50% screen height
+    ghost_sprite_size: number;      // 32 pixels
+    ghost_hitbox_size: number;      // 30 pixels
     terminal_velocity_upward: number;   // -600 pixels/second
     terminal_velocity_downward: number; // 800 pixels/second
     target_fps: number;             // 60 FPS
+    frame_time_ms: number;          // 16.67ms
+    frame_timeout_ms: number;       // 17.67ms
+    score_bar_height: number;       // 40 pixels
+    score_bar_color: string;        // '#2C2C2C'
+    score_font: string;             // '18px Arial'
+    score_text_color: string;       // '#FFFFFF'
+    high_score_key: string;         // localStorage key
+    canvas_border_width: number;    // 3 pixels
+    canvas_border_color: string;    // '#1A1A1A'
+    background_color: string;       // '#87CEEB'
 }
 ```
 
